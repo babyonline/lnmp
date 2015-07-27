@@ -3,30 +3,38 @@
 # Blog:  http://blog.linuxeye.com
 
 # Check if user is root
-[ $(id -u) != "0" ] && echo "Error: You must be root to run this script" && kill -9 $$
+[ $(id -u) != "0" ] && { echo -e "\033[31mError: You must be root to run this script\033[0m"; exit 1; } 
 
 export PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 clear
-echo "#######################################################################"
-echo "#         LNMP for CentOS/RadHat 5+ Debian 6+ and Ubuntu 12+          #"
-echo "#                           Uninstall LNMP                            #"
-echo "# For more information Please visit http://blog.linuxeye.com/31.html  #"
-echo "#######################################################################"
+printf "
+#######################################################################
+#    LNMP/LAMP/LANMP for CentOS/RadHat 5+ Debian 6+ and Ubuntu 12+    #
+#                           Uninstall LNMP                            #
+# For more information please visit http://blog.linuxeye.com/31.html  #
+#######################################################################
+"
 . ./options.conf
 
 Uninstall()
 {
-[ -e "$db_install_dir" ] && service mysqld stop && rm -rf /etc/init.d/mysqld /etc/my.cnf /etc/ld.so.conf.d/mysql.conf /usr/include/mysql
+[ -e "$db_install_dir" ] && service mysqld stop && rm -rf /etc/init.d/mysqld /etc/my.cnf
 [ -e "$apache_install_dir" ] && service httpd stop && rm -rf /etc/init.d/httpd
 [ -e "$php_install_dir" ] && service php-fpm stop && rm -rf /etc/init.d/php-fpm
-[ -e "$web_install_dir" ] && service nginx stop && rm -rf /etc/init.d/nginx /etc/logrotate.d/nginx /var/ngx_pagespeed_cache
+[ -e "$web_install_dir" ] && service nginx stop && rm -rf /etc/init.d/nginx /etc/logrotate.d/nginx
 [ -e "$pureftpd_install_dir" ] && service pureftpd stop && rm -rf /etc/init.d/pureftpd
 [ -e "$redis_install_dir" ] && service redis-server stop && rm -rf /etc/init.d/redis-server
 [ -e "$memcached_install_dir" ] && service memcached stop && rm -rf /etc/init.d/memcached
+[ -e "/usr/local/imagemagick" ] && rm -rf /usr/local/imagemagick 
+[ -e "/usr/local/graphicsmagick" ] && rm -rf /usr/local/graphicsmagick 
+[ -e "/etc/init.d/supervisord" ] && service supervisord stop && { rm -rf /etc/supervisord.conf /etc/init.d/supervisord; }
+[ -e "/usr/bin/hhvm" ] && { rpm -e hhvm ; rm -rf /etc/hhvm /var/log/hhvm; }
+id -u $run_user >/dev/null 2>&1 ; [ $? -eq 0 ] && userdel $run_user
+id -u mysql >/dev/null 2>&1 ; [ $? -eq 0 ] && userdel mysql 
 
-/bin/mv ${home_dir}{,_$(date +%F)}
+/bin/mv ${wwwroot_dir}{,_$(date +%F)}
 /bin/mv ${db_data_dir}{,_$(date +%F)}
-for D in `cat ./options.conf | grep dir= | grep -v lnmp | awk -F'=' '{print $2}' | sort | uniq`
+for D in `cat ./options.conf | grep dir= | grep -v lnmp | grep -v backup_dir | awk -F'=' '{print $2}' | sort | uniq`
 do
         [ -e "$D" ] && rm -rf $D
 done
@@ -57,17 +65,19 @@ echo
 echo -e "\033[31mYou will uninstall LNMP, Please backup your configure files and DB data! \033[0m"
 echo 
 echo -e "\033[33mThe following directory or files will be remove: \033[0m"
-for D in `cat ./options.conf | grep dir= | grep -v lnmp | awk -F'=' '{print $2}' | sort | uniq` 
+for D in `cat ./options.conf | grep dir= | grep -v lnmp | grep -v backup_dir | awk -F'=' '{print $2}' | sort | uniq` 
 do
 	[ -e "$D" ] && echo $D
 done
-[ -e "$web_install_dir" ] && echo -e "/etc/init.d/nginx\n/etc/logrotate.d/nginx" && [ -e "/var/ngx_pagespeed_cache" ] && echo '/var/ngx_pagespeed_cache'
+[ -e "$web_install_dir" ] && echo -e "/etc/init.d/nginx\n/etc/logrotate.d/nginx"
 [ -e "$apache_install_dir" ] && echo '/etc/init.d/httpd'
-[ -e "$db_install_dir" ] && echo -e "/etc/init.d/mysqld\n/etc/my.cnf\n/etc/ld.so.conf.d/mysql.conf\n/usr/include/mysql"
+[ -e "$db_install_dir" ] && echo -e "/etc/init.d/mysqld\n/etc/my.cnf"
 [ -e "$php_install_dir" ] && echo '/etc/init.d/php-fpm'
 [ -e "$pureftpd_install_dir" ] && echo '/etc/init.d/pureftpd'
 [ -e "$memcached_install_dir" ] && echo '/etc/init.d/memcached' 
 [ -e "$redis_install_dir" ] && echo '/etc/init.d/redis-server' 
+[ -e "/usr/local/imagemagick" ] && echo '/usr/local/imagemagick' 
+[ -e "/usr/local/graphicsmagick" ] && echo '/usr/local/graphicsmagick' 
 echo 
 echo "Press Ctrl+c to cancel or Press any key to continue..."
 char=`get_char`
@@ -83,4 +93,4 @@ do
         fi
 done
 
-[ "$uninstall_yn" == 'y' ] && Uninstall 
+[ "$uninstall_yn" == 'y' ] && Uninstall

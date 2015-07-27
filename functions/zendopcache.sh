@@ -5,12 +5,12 @@
 Install_ZendOPcache()
 {
 cd $lnmp_dir/src
+. ../functions/download.sh
 . ../options.conf
 
-rm -rf ZendOptimizerPlus-master*
-wget -c --no-check-certificate -O ZendOptimizerPlus-master.zip https://github.com/zendtech/ZendOptimizerPlus/archive/master.zip 
-unzip -q ZendOptimizerPlus-master.zip 
-cd ZendOptimizerPlus-master 
+src_url=https://pecl.php.net/get/zendopcache-$zendopcache_version.tgz && Download_src
+tar xzf zendopcache-$zendopcache_version.tgz 
+cd zendopcache-$zendopcache_version 
 make clean
 $php_install_dir/bin/phpize
 ./configure --with-php-config=$php_install_dir/bin/php-config
@@ -45,6 +45,6 @@ else
         echo -e "\033[31meZend OPcache module install failed, Please contact the author! \033[0m"
 fi
 cd ..
-/bin/rm -rf ZendOptimizerPlus-master
+/bin/rm -rf zendopcache-$zendopcache_version 
 cd ..
 }

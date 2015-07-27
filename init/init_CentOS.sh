@@ -25,49 +25,18 @@ cat >> /etc/fstab << EOF
 EOF
 fi
 
-src_url=http://blog.linuxeye.com/lnmp/src/yum-3.4.3.tar.gz && Download_src
-tar zxf yum-3.4.3.tar.gz
-cd yum-3.4.3
-./yummain.py install yum -y
-cd ..
 sed -i 's@^exclude@#exclude@' /etc/yum.conf
 yum clean all
 
-#public_IP=`../functions/get_public_ip.py`
-#if [ "`../functions/get_ip_area.py $public_IP`" == 'CN' ];then
-	if [ -n "$(cat /etc/redhat-release | grep ' 7\.')" ];then
-                if [ -n "$(cat /etc/redhat-release | grep 'Red Hat')" ];then
-                        /bin/mv /etc/yum.repos.d/CentOS-Base.repo{,_bk}
-                        wget -O /etc/yum.repos.d/CentOS-Base.repo http://mirrors.aliyun.com/repo/Centos-7.repo
-                        sed -i 's@\$releasever@7@g' /etc/yum.repos.d/CentOS-Base.repo
-                        sed -i 's@gpgcheck=1@gpgcheck=0@g' /etc/yum.repos.d/CentOS-Base.repo
-                fi
-	elif [ -n "$(cat /etc/redhat-release | grep ' 6\.')" ];then
-		if [ -n "$(cat /etc/redhat-release | grep 'Red Hat')" ];then
-	        	/bin/mv /etc/yum.repos.d/CentOS-Base.repo{,_bk}
-			wget -O /etc/yum.repos.d/CentOS-Base.repo http://mirrors.aliyun.com/repo/Centos-6.repo
-			sed -i 's@\$releasever@6@g' /etc/yum.repos.d/CentOS-Base.repo
-	                sed -i 's@gpgcheck=1@gpgcheck=0@g' /etc/yum.repos.d/CentOS-Base.repo
-		fi
-	elif [ -n "$(cat /etc/redhat-release | grep '5\.')" ];then
-		if [ -n "$(cat /etc/redhat-release | grep 'Red Hat')" ];then
-	        	/bin/mv /etc/yum.repos.d/CentOS-Base.repo{,_bk}
-			wget -O /etc/yum.repos.d/CentOS-Base.repo http://mirrors.aliyun.com/repo/Centos-5.repo
-			sed -i 's@\$releasever@5@g' /etc/yum.repos.d/CentOS-Base.repo
-	                sed -i 's@gpgcheck=1@gpgcheck=0@g' /etc/yum.repos.d/CentOS-Base.repo
-		fi
-	fi
+yum makecache
 
-	yum makecache
-#fi
-
-if [ -n "$(cat /etc/redhat-release | grep ' 7\.')" ];then
+if [ -n "`grep ' 7\.' /etc/redhat-release`" ];then
 	yum -y install iptables-services 
 	systemctl mask firewalld.service
 	systemctl enable iptables.service
-elif [ -n "$(cat /etc/redhat-release | grep ' 6\.')" ];then
+elif [ -n "`grep ' 6\.' /etc/redhat-release`" ];then
 	yum -y groupremove "FTP Server" "PostgreSQL Database client" "PostgreSQL Database server" "MySQL Database server" "MySQL Database client" "Web Server" "Office Suite and Productivity" "E-mail server" "Ruby Support" "Printing client" 
-elif [ -n "$(cat /etc/redhat-release | grep '5\.')" ];then
+elif [ -n "`grep ' 5\.' /etc/redhat-release`" ];then
 	yum -y groupremove "FTP Server" "Windows File Server" "PostgreSQL Database" "News Server" "MySQL Database" "DNS Name Server" "Web Server" "Dialup Networking Support" "Mail Server" "Ruby" "Office/Productivity" "Sound and Video" "Printing Support" "OpenFabrics Enterprise Distribution"
 fi
 
@@ -76,23 +45,13 @@ yum check-update
 # check upgrade OS
 [ "$upgrade_yn" == 'y' ] && yum -y upgrade
 
-cd /etc/yum.repos.d/
-if [ -e "CentOS-Base.repo" -a ! -e "centos.repo" ];then
-	rename repo repo_bk *.repo
-	/bin/mv CentOS-Base.repo{_bk,}
-elif [ -e "CentOS-Base.repo" -a -e "centos.repo" ];then
-	rename repo repo_bk *.repo
-	/bin/mv centos.repo{_bk,}
-fi
-cd -
-
 # Install needed packages
-for Package in gcc gcc-c++ make cmake autoconf libjpeg libjpeg-devel libpng libpng-devel freetype freetype-devel libxml2 libxml2-devel zlib zlib-devel glibc glibc-devel glib2 glib2-devel bzip2 bzip2-devel ncurses ncurses-devel curl curl-devel e2fsprogs e2fsprogs-devel krb5-devel libidn libidn-devel openssl openssl-devel libxslt-devel libevent-devel libtool libtool-ltdl bison gd-devel vim-enhanced pcre-devel zip unzip ntpdate sysstat patch bc expect rsync git
+for Package in gcc gcc-c++ make cmake autoconf libjpeg libjpeg-devel libpng libpng-devel freetype freetype-devel libxml2 libxml2-devel zlib zlib-devel glibc glibc-devel glib2 glib2-devel bzip2 bzip2-devel ncurses ncurses-devel libaio readline-devel curl curl-devel e2fsprogs e2fsprogs-devel krb5-devel libidn libidn-devel openssl openssl-devel libxslt-devel libevent-devel libtool libtool-ltdl bison gd-devel vim-enhanced pcre-devel zip unzip ntpdate sysstat patch bc expect rsync git
 do
 	yum -y install $Package
 done
 
-yum -y update bash openssl
+yum -y update bash openssl glibc
 
 # use gcc-4.4
 if [ -n "`gcc --version | head -n1 | grep '4\.1\.'`" ];then
@@ -101,7 +60,7 @@ if [ -n "`gcc --version | head -n1 | grep '4\.1\.'`" ];then
 fi
 
 # check sendmail
-[ "$sendmail_yn" == 'y' ] && yum -y install sendmail && service sendmail restart
+#[ "$sendmail_yn" == 'y' ] && yum -y install sendmail && service sendmail restart
 
 # closed Unnecessary services and remove obsolete rpm package
 for Service in `chkconfig --list | grep 3:on | awk '{print $1}'`;do chkconfig --level 3 $Service off;done
@@ -159,7 +118,7 @@ net.ipv4.tcp_tw_reuse = 1
 net.ipv4.tcp_tw_recycle = 1
 net.ipv4.ip_local_port_range = 1024 65000
 net.ipv4.tcp_max_syn_backlog = 65536 
-net.ipv4.tcp_max_tw_buckets = 6000
+net.ipv4.tcp_max_tw_buckets = 20000
 net.ipv4.route.gc_timeout = 100
 net.ipv4.tcp_syn_retries = 1
 net.ipv4.tcp_synack_retries = 1
@@ -170,11 +129,11 @@ net.ipv4.tcp_max_orphans = 262144
 EOF
 sysctl -p
 
-if [ -n "$(cat /etc/redhat-release | grep '5\.')" ];then
+if [ -n "`grep ' 5\.' /etc/redhat-release`" ];then
 	sed -i 's@^[3-6]:2345:respawn@#&@g' /etc/inittab
 	sed -i 's@^ca::ctrlaltdel@#&@' /etc/inittab
 	sed -i 's@LANG=.*$@LANG="en_US.UTF-8"@g' /etc/sysconfig/i18n
-elif [ -n "$(cat /etc/redhat-release | grep '6\.')" ];then
+elif [ -n "`grep ' 6\.' /etc/redhat-release`" ];then
 	sed -i 's@^ACTIVE_CONSOLES.*@ACTIVE_CONSOLES=/dev/tty[1-2]@' /etc/sysconfig/init	
 	sed -i 's@^start@#start@' /etc/init/control-alt-delete.conf
 fi
@@ -186,6 +145,13 @@ ntpdate pool.ntp.org
 service crond restart
 
 # iptables
+if [ -e '/etc/sysconfig/iptables' ] && [ -n "`grep ':INPUT DROP' /etc/sysconfig/iptables`" -a -n "`grep 'NEW -m tcp --dport 22 -j ACCEPT' /etc/sysconfig/iptables`" -a -n "`grep 'NEW -m tcp --dport 80 -j ACCEPT' /etc/sysconfig/iptables`" ];then
+	IPTABLES_STATUS=yes
+else
+	IPTABLES_STATUS=no
+fi 
+
+if [ "$IPTABLES_STATUS" == 'no' ];then
 cat > /etc/sysconfig/iptables << EOF
 # Firewall configuration written by system-config-securitylevel
 # Manual customization of this file is not recommended.
@@ -207,6 +173,7 @@ cat > /etc/sysconfig/iptables << EOF
 -A syn-flood -j REJECT --reject-with icmp-port-unreachable
 COMMIT
 EOF
+fi
 
 FW_PORT_FLAG=`grep -ow "dport $SSH_PORT" /etc/sysconfig/iptables`
 [ -z "$FW_PORT_FLAG" -a "$SSH_PORT" != '22' ] && sed -i "s@dport 22 -j ACCEPT@&\n-A INPUT -p tcp -m state --state NEW -m tcp --dport $SSH_PORT -j ACCEPT@" /etc/sysconfig/iptables 
@@ -215,16 +182,16 @@ service sshd restart
 
 # install tmux
 if [ ! -e "`which tmux`" ];then
-	src_url=http://downloads.sourceforge.net/project/levent/libevent/libevent-2.0/libevent-2.0.21-stable.tar.gz && Download_src 
-	src_url=http://downloads.sourceforge.net/project/tmux/tmux/tmux-1.9/tmux-1.9a.tar.gz && Download_src 
-	tar xzf libevent-2.0.21-stable.tar.gz
-	cd libevent-2.0.21-stable
+	src_url=http://downloads.sourceforge.net/project/levent/libevent/libevent-2.0/libevent-2.0.22-stable.tar.gz && Download_src 
+	src_url=http://downloads.sourceforge.net/project/tmux/tmux/tmux-2.0/tmux-2.0.tar.gz && Download_src 
+	tar xzf libevent-2.0.22-stable.tar.gz
+	cd libevent-2.0.22-stable
 	./configure
 	make && make install
 	cd ..
 
-	tar xzf tmux-1.9a.tar.gz
-	cd tmux-1.9a
+	tar xzf tmux-2.0.tar.gz
+	cd tmux-2.0
 	CFLAGS="-I/usr/local/include" LDFLAGS="-L//usr/local/lib" ./configure
 	make && make install
 	cd ..

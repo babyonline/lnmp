@@ -2,36 +2,10 @@
 # Author:  yeho <lj2007331 AT gmail.com>
 # Blog:  http://blog.linuxeye.com
 
-# Check if user is root
-[ $(id -u) != "0" ] && echo "Error: You must be root to run this script" && exit 1 
-
-export PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
-clear
-echo "#######################################################################"
-echo "#         LNMP for CentOS/RadHat 5+ Debian 6+ and Ubuntu 12+          #"
-echo "#                      Upgrade Redis for LNMP                         #"
-echo "# For more information Please visit http://blog.linuxeye.com/31.html  #"
-echo "#######################################################################"
-
-cd src
-. ../options.conf
-
-[ ! -d "$redis_install_dir" ] && echo -e "\033[31mThe Redis is not installed on your system!\033[0m " && exit 1
-
-get_char()
-{
-SAVEDSTTY=`stty -g`
-stty -echo
-stty cbreak
-dd if=/dev/tty bs=1 count=1 2> /dev/null
-stty -raw
-stty echo
-stty $SAVEDSTTY
-}
-echo
-
 Upgrade_Redis()
 {
+cd $lnmp_dir/src
+[ ! -d "$redis_install_dir" ] && echo -e "\033[31mThe Redis is not installed on your system!\033[0m " && exit 1
 Old_redis_version=`$redis_install_dir/bin/redis-cli --version | awk '{print $2}'`
 echo -e "Current Redis Version: \033[32m$Old_redis_version\033[0m"
 while :
@@ -77,5 +51,3 @@ if [ -e "redis-$redis_version.tar.gz" ];then
         cd ..
 fi
 }
-
-Upgrade_Redis

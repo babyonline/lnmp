@@ -8,11 +8,12 @@ cd $lnmp_dir/src
 . ../functions/download.sh 
 . ../options.conf
 
-useradd -M -s /sbin/nologin www
+id -u $run_user >/dev/null 2>&1
+[ $? -ne 0 ] && useradd -M -s /sbin/nologin $run_user 
 
-if [ -n "$(cat /etc/redhat-release | grep ' 7\.')" ];then
+if [ -n "$(grep ' 7\.' /etc/redhat-release)" ];then
 	CentOS_RHL=7
-elif [ -n "$(cat /etc/redhat-release | grep ' 6\.')" ];then
+elif [ -n "$(grep ' 6\.' /etc/redhat-release)" ];then
 	CentOS_RHL=6
 fi
 
@@ -30,14 +31,16 @@ enabled=1
 gpgcheck=0
 EOF
 fi
-cat > /etc/yum.repos.d/gleez.repo << EOF
-[gleez]
-name=Gleez repo
-baseurl=http://yum.gleez.com/7/\$basearch/
-enabled=0
+cat > /etc/yum.repos.d/hhvm.repo << EOF
+[hhvm]
+name=Copr repo for hhvm-repo owned by no1youknowz
+baseurl=https://copr-be.cloud.fedoraproject.org/results/no1youknowz/hhvm-repo/epel-7-\$basearch/
+skip_if_unavailable=True
 gpgcheck=0
+enabled=0
 EOF
-yum --enablerepo=gleez -y install hhvm
+yum --enablerepo=hhvm -y install hhvm
+[ ! -e "/usr/bin/hhvm" -a "/usr/local/bin/hhvm" ] && ln -s /usr/local/bin/hhvm /usr/bin/hhvm
 fi
 
 if [ "$CentOS_RHL" == '6' ];then
@@ -54,21 +57,35 @@ enabled=1
 gpgcheck=0
 EOF
 fi
-yum -y install libmcrypt-devel glog-devel jemalloc-devel tbb-devel libdwarf-devel mysql-devel \
-libxml2-devel libicu-devel pcre-devel gd-devel boost-devel sqlite-devel pam-devel \
-bzip2-devel oniguruma-devel openldap-devel readline-devel libc-client-devel libcap-devel \
-libevent-devel libcurl-devel libmemcached-devel
+
+for Package in libmcrypt-devel glog-devel jemalloc-devel tbb-devel libdwarf-devel mysql-devel libxml2-devel libicu-devel pcre-devel gd-devel boost-devel sqlite-devel pam-devel bzip2-devel oniguruma-devel openldap-devel readline-devel libc-client-devel libcap-devel libevent-devel libcurl-devel libmemcached-devel lcms2 inotify-tools
+do
+        yum -y install $Package
+done
+
+public_IP=`../functions/get_public_ip.py`
+if [ "`../functions/get_ip_area.py $public_IP`" == '\u4e2d\u56fd' ];then
+        FLAG_IP=CN
+fi
+
+echo $public_IP $FLAG_IP
+
+[ "$FLAG_IP"x == "CN"x ] && REMI_ADDR=http://mirrors.swu.edu.cn || REMI_ADDR=http://mirrors.mediatemple.net
 
 cat > /etc/yum.repos.d/remi.repo << EOF
 [remi]
 name=Les RPM de remi pour Enterprise Linux 6 - \$basearch
-#baseurl=http://rpms.famillecollet.com/enterprise/6/remi/\$basearch/
-mirrorlist=http://rpms.famillecollet.com/enterprise/6/remi/mirror
+baseurl=$REMI_ADDR/remi/enterprise/6/remi/\$basearch/
+#mirrorlist=http://rpms.famillecollet.com/enterprise/6/remi/mirror
 enabled=0
 gpgcheck=0
 EOF
 
-yum --enablerepo=remi -y install libwebp mysql mysql-devel mysql-libs
+yum -y remove libwebp
+src_url=http://mirrors.linuxeye.com/lnmp/src/libwebp-0.3.1-2.el6.remi.x86_64.rpm && Download_src
+src_url=http://mirrors.linuxeye.com/lnmp/src/hhvm-3.5.0-4.el6.x86_64.rpm && Download_src
+rpm -ivh libwebp-0.3.1-2.el6.remi.x86_64.rpm
+yum --enablerepo=remi --disablerepo=epel -y install mysql mysql-devel mysql-libs
 
 yum -y remove boost-system boost-filesystem
 
@@ -79,13 +96,14 @@ baseurl=http://yum.gleez.com/6/\$basearch/
 enabled=0
 gpgcheck=0
 EOF
-yum --enablerepo=gleez -y install hhvm
+ping yum.gleez.com -c 4 >/dev/null 2>&1
+yum --enablerepo=gleez --disablerepo=epel -y install -R 2 ./hhvm-3.5.0-4.el6.x86_64.rpm
 fi
 
-userdel -r nginx
-rm -rf /var/run/hhvm/ /var/log/hhvm/
-mkdir /var/run/hhvm/ /var/log/hhvm/
-chown -R www.www /var/run/hhvm /var/log/hhvm
+userdel -r nginx;userdel -r saslauth
+rm -rf /var/log/hhvm
+mkdir /var/log/hhvm
+chown -R ${run_user}.$run_user /var/log/hhvm
 cat > /etc/hhvm/config.hdf << EOF
 ResourceLimit {
   CoreFileSize = 0          # in bytes
@@ -127,16 +145,16 @@ EOF
 
 cat > /etc/hhvm/server.ini << EOF
 ; php options
-pid = /var/run/hhvm/pid
+pid = /var/log/hhvm/pid
 
 ; hhvm specific
 ;hhvm.server.port = 9001
-hhvm.server.file_socket = /var/run/hhvm/sock
+hhvm.server.file_socket = /var/log/hhvm/sock
 hhvm.server.type = fastcgi
 hhvm.server.default_document = index.php
 hhvm.log.use_log_file = true
 hhvm.log.file = /var/log/hhvm/error.log
-hhvm.repo.central.path = /var/run/hhvm/hhvm.hhbc
+hhvm.repo.central.path = /var/log/hhvm/hhvm.hhbc
 EOF
 
 cat > /etc/hhvm/php.ini << EOF
@@ -146,42 +164,24 @@ memory_limit = 400000000
 post_max_size = 50000000
 EOF
 
-if [ "$CentOS_RHL" == '7' ];then
-cat > /etc/systemd/system/hhvm.service << EOF
-[Unit]
-Description=HHVM HipHop Virtual Machine (FCGI)
-
-[Service]
-ExecStartPre=/usr/bin/rm -rf /var/run/hhvm ; /usr/bin/mkdir /var/run/hhvm ; /usr/bin/chown www.www /var/run/hhvm
-ExecStart=/usr/bin/hhvm --mode server --user www --config /etc/hhvm/server.ini --config /etc/hhvm/php.ini --config /etc/hhvm/config.hdf
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-systemctl enable hhvm
-systemctl start hhvm
-elif [ "$CentOS_RHL" == '6' ];then
-/bin/cp ../init/hhvm-init-CentOS6 /etc/init.d/hhvm
-chmod +x /etc/init.d/hhvm
-chkconfig hhvm on
-service hhvm start
-fi
-if [ -e "/usr/bin/hhvm" ];then
-	sed -i 's@/dev/shm/php-cgi.sock@/var/run/hhvm/sock@' $web_install_dir/conf/nginx.conf 
+if [ -e "/usr/bin/hhvm" -a ! -e "$php_install_dir" ];then
+	sed -i 's@/dev/shm/php-cgi.sock@/var/log/hhvm/sock@' $web_install_dir/conf/nginx.conf 
 	[ -z "`grep 'fastcgi_param SCRIPT_FILENAME' $web_install_dir/conf/nginx.conf`" ] && sed -i "s@fastcgi_index index.php;@&\n\t\tfastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;@" $web_install_dir/conf/nginx.conf 
 	sed -i 's@include fastcgi.conf;@include fastcgi_params;@' $web_install_dir/conf/nginx.conf 
 	service nginx reload
 fi
 
+rm -rf /etc/ld.so.conf.d/*_64.conf
+ldconfig
 # Supervisor
 yum -y install python-setuptools
+ping pypi.python.org -c 4 >/dev/null 2>&1
 easy_install supervisor
 echo_supervisord_conf > /etc/supervisord.conf
 sed -i 's@pidfile=/tmp/supervisord.pid@pidfile=/var/run/supervisord.pid@' /etc/supervisord.conf
 [ -z "`grep 'program:hhvm' /etc/supervisord.conf`" ] && cat >> /etc/supervisord.conf << EOF
 [program:hhvm]
-command=/usr/bin/hhvm --mode server --user www --config /etc/hhvm/server.ini --config /etc/hhvm/php.ini --config /etc/hhvm/config.hdf
+command=/usr/bin/hhvm --mode server --user $run_user --config /etc/hhvm/server.ini --config /etc/hhvm/php.ini --config /etc/hhvm/config.hdf
 numprocs=1 ; number of processes copies to start (def 1)
 directory=/tmp ; directory to cwd to before exec (def no cwd)
 autostart=true ; start at supervisord start (default: true)

@@ -34,7 +34,7 @@ apt-get -y update
 [ "$upgrade_yn" == 'y' ] && apt-get -y upgrade 
 
 # Install needed packages
-for Package in gcc g++ make cmake autoconf libjpeg8 libjpeg8-dev libpng12-0 libpng12-dev libpng3 libfreetype6 libfreetype6-dev libxml2 libxml2-dev zlib1g zlib1g-dev libc6 libc6-dev libglib2.0-0 libglib2.0-dev bzip2 libzip-dev libbz2-1.0 libncurses5 libncurses5-dev curl libcurl3 libcurl4-openssl-dev e2fsprogs libkrb5-3 libkrb5-dev libltdl-dev libidn11 libidn11-dev openssl libssl-dev libtool libevent-dev bison re2c libsasl2-dev libxslt1-dev locales libcloog-ppl0 patch vim zip unzip tmux htop wget bc expect rsync git 
+for Package in gcc g++ make cmake autoconf libjpeg8 libjpeg8-dev libjpeg-dev libpng12-0 libpng12-dev libpng3 libfreetype6 libfreetype6-dev libxml2 libxml2-dev zlib1g zlib1g-dev libc6 libc6-dev libglib2.0-0 libglib2.0-dev bzip2 libzip-dev libbz2-1.0 libncurses5 libncurses5-dev libaio1 libaio-dev libreadline-dev curl libcurl3 libcurl4-openssl-dev e2fsprogs libkrb5-3 libkrb5-dev libltdl-dev libidn11 libidn11-dev openssl libssl-dev libtool libevent-dev bison re2c libsasl2-dev libxslt1-dev locales libcloog-ppl0 patch vim zip unzip tmux htop wget bc expect rsync git
 do
 	apt-get -y install $Package
 done
@@ -83,7 +83,7 @@ net.ipv4.tcp_tw_reuse = 1
 net.ipv4.tcp_tw_recycle = 1
 net.ipv4.ip_local_port_range = 1024 65000
 net.ipv4.tcp_max_syn_backlog = 65536 
-net.ipv4.tcp_max_tw_buckets = 6000
+net.ipv4.tcp_max_tw_buckets = 20000
 net.ipv4.route.gc_timeout = 100
 net.ipv4.tcp_syn_retries = 1
 net.ipv4.tcp_synack_retries = 1
@@ -106,6 +106,13 @@ ntpdate pool.ntp.org
 service cron restart
 
 # iptables
+if [ -e '/etc/iptables.up.rules' ] && [ -n "`grep ':INPUT DROP' /etc/iptables.up.rules`" -a -n "`grep 'NEW -m tcp --dport 22 -j ACCEPT' /etc/iptables.up.rules`" -a -n "`grep 'NEW -m tcp --dport 80 -j ACCEPT' /etc/iptables.up.rules`" ];then
+        IPTABLES_STATUS=yes
+else
+        IPTABLES_STATUS=no
+fi
+
+if [ "$IPTABLES_STATUS" == 'no' ];then
 cat > /etc/iptables.up.rules << EOF
 # Firewall configuration written by system-config-securitylevel
 # Manual customization of this file is not recommended.
@@ -127,6 +134,8 @@ cat > /etc/iptables.up.rules << EOF
 -A syn-flood -j REJECT --reject-with icmp-port-unreachable
 COMMIT
 EOF
+fi
+
 FW_PORT_FLAG=`grep -ow "dport $SSH_PORT" /etc/iptables.up.rules` 
 [ -z "$FW_PORT_FLAG" -a "$SSH_PORT" != '22' ] && sed -i "s@dport 22 -j ACCEPT@&\n-A INPUT -p tcp -m state --state NEW -m tcp --dport $SSH_PORT -j ACCEPT@" /etc/iptables.up.rules 
 iptables-restore < /etc/iptables.up.rules

@@ -2,39 +2,13 @@
 # Author:  yeho <lj2007331 AT gmail.com>
 # Blog:  http://blog.linuxeye.com
 
-# Check if user is root
-[ $(id -u) != "0" ] && echo "Error: You must be root to run this script" && exit 1 
-
-export PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
-clear
-echo "#######################################################################"
-echo "#         LNMP for CentOS/RadHat 5+ Debian 6+ and Ubuntu 12+          #"
-echo "#                Upgrade Nginx/Tengine for LNMP                       #"
-echo "# For more information Please visit http://blog.linuxeye.com/31.html  #"
-echo "#######################################################################"
-
-cd src
-. ../options.conf
-. ../functions/download.sh
-
-[ ! -e "$web_install_dir/sbin/nginx" ] && echo -e "\033[31mThe Nginx/Tengine is not installed on your system!\033[0m " && exit 1
-
-get_char()
-{
-SAVEDSTTY=`stty -g`
-stty -echo
-stty cbreak
-dd if=/dev/tty bs=1 count=1 2> /dev/null
-stty -raw
-stty echo
-stty $SAVEDSTTY
-}
-echo
-
 Upgrade_Nginx()
 {
+cd $lnmp_dir/src
+[ ! -e "$nginx_install_dir/sbin/nginx" ] && echo -e "\033[31mThe Nginx is not installed on your system!\033[0m " && exit 1
 Old_nginx_version_tmp=`$web_install_dir/sbin/nginx -v 2>&1`
 Old_nginx_version=${Old_nginx_version_tmp##*/}
+echo
 echo -e "Current Nginx Version: \033[32m$Old_nginx_version\033[0m"
 while :
 do
@@ -71,8 +45,8 @@ if [ -e "nginx-$nginx_version.tar.gz" ];then
                 kill -USR2 `cat /var/run/nginx.pid`
                 kill -QUIT `cat /var/run/nginx.pid.oldbin`
 	        echo -e "You have \033[32msuccessfully\033[0m upgrade from \033[32m$Old_nginx_version\033[0m to \033[32m$nginx_version\033[0m"
-        	echo "Restarting Nginx..."
-	        /etc/init.d/nginx restart
+        	#echo "Restarting Nginx..."
+	        #/etc/init.d/nginx restart
         else
                 echo -e "\033[31mUpgrade Nginx failed! \033[0m"
         fi
@@ -82,8 +56,11 @@ fi
 
 Upgrade_Tengine()
 {
+cd $lnmp_dir/src
+[ ! -e "$web_install_dir/sbin/nginx" ] && echo -e "\033[31mThe Tengine is not installed on your system!\033[0m " && exit 1
 Old_tengine_version_tmp=`$web_install_dir/sbin/nginx -v 2>&1`
 Old_tengine_version="`echo ${Old_tengine_version_tmp#*/} | awk '{print $1}'`"
+echo
 echo -e "Current Tengine Version: \033[32m$Old_tengine_version\033[0m"
 while :
 do
@@ -125,33 +102,14 @@ if [ -e "tengine-$tengine_version.tar.gz" ];then
                 /bin/cp objs/dso_tool $web_install_dir/sbin/dso_tool
 		chmod +x $web_install_dir/sbin/*
 		make install
-		if [ -e "$web_install_dir/modules$(date +%m%d)/ngx_pagespeed.so" ];then
-			cd $lnmp_dir/src
-			rm -rf ngx_pagespeed*
-			src_url=https://dl.google.com/dl/page-speed/psol/1.9.32.1.tar.gz && Download_src
-			[ -s "ngx_pagespeed-1.9.32.1-beta.zip" ] && echo "ngx_pagespeed-1.9.32.1-beta.zip found" || wget -c --no-check-certificate -O ngx_pagespeed-1.9.32.1-beta.zip https://github.com/pagespeed/ngx_pagespeed/archive/master.zip
-
-			unzip -q ngx_pagespeed-1.9.32.1-beta.zip
-			/bin/mv ngx_pagespeed-master ngx_pagespeed-1.9.32.1-beta
-			tar xzf 1.9.32.1.tar.gz -C ngx_pagespeed-1.9.32.1-beta
-			cd tengine-$tengine_version
-			$web_install_dir/sbin/dso_tool --add-module=$lnmp_dir/src/ngx_pagespeed-1.9.32.1-beta
-		fi
-
                 kill -USR2 `cat /var/run/nginx.pid`
                 kill -QUIT `cat /var/run/nginx.pid.oldbin`
                 echo -e "You have \033[32msuccessfully\033[0m upgrade from \033[32m$Old_tengine_version\033[0m to \033[32m$tengine_version\033[0m"
-                echo "Restarting Tengine..."
-                /etc/init.d/nginx restart
+                #echo "Restarting Tengine..."
+                #/etc/init.d/nginx restart
         else
                 echo -e "\033[31mUpgrade Tengine failed! \033[0m"
         fi
         cd ..
 fi
 }
-
-if [ ! -e "$web_install_dir/sbin/dso_tool" ];then
-	Upgrade_Nginx
-elif [ -e "$web_install_dir/sbin/dso_tool" ];then 
-	Upgrade_Tengine
-fi

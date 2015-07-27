@@ -9,53 +9,48 @@ cd $lnmp_dir/src
 . ../functions/check_os.sh
 . ../options.conf
 
-src_url=https://downloads.mariadb.org/f/mariadb-10.0.14/source/mariadb-10.0.14.tar.gz && Download_src 
+public_IP=`../functions/get_public_ip.py`
+if [ "`../functions/get_ip_area.py $public_IP`" == '\u4e2d\u56fd' ];then
+	FLAG_IP=CN
+fi
+
+echo $public_IP $FLAG_IP
+
+[ "$FLAG_IP"x == "CN"x ] && DOWN_ADDR=http://mirrors.aliyun.com/mariadb || DOWN_ADDR=https://downloads.mariadb.org/f
+[ -d "/lib64" ] && { SYS_BIT_a=x86_64;SYS_BIT_b=x86_64; } || { SYS_BIT_a=x86;SYS_BIT_b=i686; }
+LIBC_VERSION=`getconf -a | grep GNU_LIBC_VERSION | awk '{print $NF}'`
+LIBC_YN=`echo "$LIBC_VERSION < 2.14" | bc`
+[ $LIBC_YN == '1' ] && GLIBC_FLAG=linux || GLIBC_FLAG=linux-glibc_214 
+
+src_url=$DOWN_ADDR/mariadb-${mariadb_10_version}/bintar-${GLIBC_FLAG}-$SYS_BIT_a/mariadb-${mariadb_10_version}-${GLIBC_FLAG}-${SYS_BIT_b}.tar.gz && Download_src
 
 useradd -M -s /sbin/nologin mysql
 mkdir -p $mariadb_data_dir;chown mysql.mysql -R $mariadb_data_dir
-tar zxf mariadb-10.0.14.tar.gz
-cd mariadb-10.0.14
+tar zxf mariadb-${mariadb_10_version}-${GLIBC_FLAG}-${SYS_BIT_b}.tar.gz 
+[ ! -d "$mariadb_install_dir" ] && mkdir -p $mariadb_install_dir
+mv mariadb-${mariadb_10_version}-linux-${SYS_BIT_b}/* $mariadb_install_dir 
 if [ "$je_tc_malloc" == '1' ];then
-	EXE_LINKER="-DCMAKE_EXE_LINKER_FLAGS='-ljemalloc'"
+	sed -i 's@executing mysqld_safe@executing mysqld_safe\nexport LD_PRELOAD=/usr/local/lib/libjemalloc.so@' $mariadb_install_dir/bin/mysqld_safe
 elif [ "$je_tc_malloc" == '2' ];then
-	EXE_LINKER="-DCMAKE_EXE_LINKER_FLAGS='-ltcmalloc'"
+	sed -i 's@executing mysqld_safe@executing mysqld_safe\nexport LD_PRELOAD=/usr/local/lib/libtcmalloc.so@' $mariadb_install_dir/bin/mysqld_safe
 fi
-make clean
-cmake . -DCMAKE_INSTALL_PREFIX=$mariadb_install_dir \
--DMYSQL_DATADIR=$mariadb_data_dir \
--DWITH_ARIA_STORAGE_ENGINE=1 \
--DWITH_XTRADB_STORAGE_ENGINE=1 \
--DWITH_ARCHIVE_STORAGE_ENGINE=1 \
--DWITH_INNOBASE_STORAGE_ENGINE=1 \
--DWITH_PARTITION_STORAGE_ENGINE=1 \
--DWITH_FEDERATEDX_STORAGE_ENGINE=1 \
--DWITH_BLACKHOLE_STORAGE_ENGINE=1 \
--DWITH_MYISAM_STORAGE_ENGINE=1 \
--DWITH_READLINE=1 \
--DENABLED_LOCAL_INFILE=1 \
--DENABLE_DTRACE=0 \
--DDEFAULT_CHARSET=utf8 \
--DDEFAULT_COLLATION=utf8_general_ci \
--DWITH_EMBEDDED_SERVER=1 \
-$EXE_LINKER
-make && make install
 
-if [ -d "$mariadb_install_dir" ];then
+if [ -d "$mariadb_install_dir/bin" ];then
         echo -e "\033[32mMariaDB install successfully! \033[0m"
 else
+	rm -rf $mariadb_install_dir
         echo -e "\033[31mMariaDB install failed, Please contact the author! \033[0m"
         kill -9 $$
 fi
 
-/bin/cp support-files/my-small.cnf /etc/my.cnf
-/bin/cp support-files/mysql.server /etc/init.d/mysqld
+/bin/cp $mariadb_install_dir/support-files/mysql.server /etc/init.d/mysqld
+sed -i "s@^basedir=.*@basedir=$mariadb_install_dir@" /etc/init.d/mysqld
+sed -i "s@^datadir=.*@datadir=$mariadb_data_dir@" /etc/init.d/mysqld
 chmod +x /etc/init.d/mysqld
 OS_CentOS='chkconfig --add mysqld \n
 chkconfig mysqld on'
 OS_Debian_Ubuntu='update-rc.d mysqld defaults'
 OS_command
-cd ..
-/bin/rm -rf mariadb-10.0.14 
 cd ..
 
 # my.cf
@@ -63,6 +58,7 @@ cat > /etc/my.cnf << EOF
 [client]
 port = 3306
 socket = /tmp/mysql.sock
+default-character-set = utf8mb4
 
 [mysqld]
 port = 3306
@@ -74,6 +70,9 @@ pid-file = $mariadb_data_dir/mysql.pid
 user = mysql
 bind-address = 0.0.0.0
 server-id = 1
+
+init-connect = 'SET NAMES utf8mb4'
+character-set-server = utf8mb4
 
 skip-name-resolve
 #skip-networking
@@ -183,8 +182,8 @@ $mariadb_install_dir/scripts/mysql_install_db --user=mysql --basedir=$mariadb_in
 
 chown mysql.mysql -R $mariadb_data_dir
 service mysqld start
-export PATH=$mariadb_install_dir/bin:$PATH
-[ -z "`cat /etc/profile | grep $mariadb_install_dir`" ] && echo "export PATH=$mariadb_install_dir/bin:\$PATH" >> /etc/profile 
+[ -z "`grep ^'export PATH=' /etc/profile`" ] && echo "export PATH=$mariadb_install_dir/bin:\$PATH" >> /etc/profile 
+[ -n "`grep ^'export PATH=' /etc/profile`" -a -z "`grep $mariadb_install_dir /etc/profile`" ] && sed -i "s@^export PATH=\(.*\)@export PATH=$mariadb_install_dir/bin:\1@" /etc/profile
 . /etc/profile
 
 $mariadb_install_dir/bin/mysql -e "grant all privileges on *.* to root@'127.0.0.1' identified by \"$dbrootpwd\" with grant option;"

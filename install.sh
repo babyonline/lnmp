@@ -2,7 +2,7 @@
 # Author:  yeho <lj2007331 AT gmail.com>
 # Blog:  http://blog.linuxeye.com
 #
-# Version: 0.8 3-Sep-2014 lj2007331 AT gmail.com
+# Version: 0.9 8-May-2015 lj2007331 AT gmail.com
 # Notes: LNMP/LAMP/LANMP for CentOS/RadHat 5+ Debian 6+ and Ubuntu 12+ 
 #
 # This script's project home is:
@@ -10,7 +10,7 @@
 #       https://github.com/lj2007331/lnmp
 
 # Check if user is root
-[ $(id -u) != "0" ] && echo "Error: You must be root to run this script" && exit 1 
+[ $(id -u) != "0" ] && { echo -e "\033[31mError: You must be root to run this script\033[0m"; exit 1; } 
 
 export PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 clear
@@ -18,7 +18,19 @@ printf "
 #######################################################################
 #    LNMP/LAMP/LANMP for CentOS/RadHat 5+ Debian 6+ and Ubuntu 12+    #
 # For more information please visit http://blog.linuxeye.com/31.html  #
-#######################################################################"
+#######################################################################
+"
+
+get_char()
+{
+SAVEDSTTY=`stty -g`
+stty -echo
+stty cbreak
+dd if=/dev/tty bs=1 count=1 2> /dev/null
+stty -raw
+stty echo
+stty $SAVEDSTTY
+}
 
 #get pwd
 sed -i "s@^lnmp_dir.*@lnmp_dir=`pwd`@" ./options.conf
@@ -26,10 +38,13 @@ sed -i "s@^lnmp_dir.*@lnmp_dir=`pwd`@" ./options.conf
 # get local ip address
 local_IP=`./functions/get_local_ip.py`
 
+# import apps version
+. ./apps.conf
+
 # Definition Directory
 . ./options.conf
 . functions/check_os.sh
-mkdir -p $home_dir/default $wwwlogs_dir $lnmp_dir/{src,conf}
+mkdir -p $wwwroot_dir/default $wwwlogs_dir $lnmp_dir/{src,conf}
 
 # choice upgrade OS
 while :
@@ -41,18 +56,18 @@ do
         else
 		[ -e init/init_*.ed -a "$upgrade_yn" == 'y' ] && { echo -e "\033[31mYour system is already upgraded! \033[0m" ; upgrade_yn=n ; }
                 # check sendmail
-		if [ "$OS" != 'Debian' ];then
-	                while :
-	                do
-	                        echo
-	                        read -p "Do you want to install sendmail? [y/n]: " sendmail_yn
-	                        if [ "$sendmail_yn" != 'y' -a "$sendmail_yn" != 'n' ];then
-	                                echo -e "\033[31minput error! Please only input 'y' or 'n'\033[0m"
-	                        else
-	                                break
-	                        fi
-	                done
-		fi
+		#if [ "$OS" != 'Debian' ];then
+	        #        while :
+	        #        do
+	        #                echo
+	        #                read -p "Do you want to install sendmail? [y/n]: " sendmail_yn
+	        #                if [ "$sendmail_yn" != 'y' -a "$sendmail_yn" != 'n' ];then
+	        #                        echo -e "\033[31minput error! Please only input 'y' or 'n'\033[0m"
+	        #                else
+	        #                        break
+	        #                fi
+	        #        done
+		#fi
                 break
         fi
 done
@@ -86,7 +101,7 @@ do
                 echo -e "\033[31minput error! Please only input 'y' or 'n'\033[0m"
         else
                 if [ "$Web_yn" == 'y' ];then
-                        [ -d "$web_install_dir" ] && { echo -e "\033[31mThe web service already installed! \033[0m" ; Web_yn=n ; break ; }
+                        [ -d "$web_install_dir/conf" ] && { echo -e "\033[31mThe web service already installed! \033[0m" ; Web_yn=Other ; break ; }
                         while :
                         do
                                 echo
@@ -99,17 +114,6 @@ do
                                 if [ $Nginx_version != 1 -a $Nginx_version != 2 -a $Nginx_version != 3 ];then
                                         echo -e "\033[31minput error! Please only input number 1,2,3\033[0m"
                                 else
-                                #if [ $Nginx_version = 1 -o $Nginx_version = 2 ];then
-                                #        while :
-                                #        do
-                                #                read -p "Do you want to install ngx_pagespeed module? [y/n]: " ngx_pagespeed_yn
-                                #                if [ "$ngx_pagespeed_yn" != 'y' -a "$ngx_pagespeed_yn" != 'n' ];then
-                                #                        echo -e "\033[31minput error! Please only input 'y' or 'n'\033[0m"
-                                #                else
-                                #                        break
-                                #                fi
-                                #        done
-                                #fi
 				while :
 				do
                                 	echo
@@ -142,7 +146,7 @@ do
                 echo -e "\033[31minput error! Please only input 'y' or 'n'\033[0m"
         else
                 if [ "$DB_yn" == 'y' ];then
-                        [ -d "$db_install_dir" ] && { echo -e "\033[31mThe database already installed! \033[0m" ; DB_yn=n ; break ; }
+                        [ -d "$db_install_dir/support-files" ] && { echo -e "\033[31mThe database already installed! \033[0m" ; DB_yn=Other ; break ; }
                         while :
                         do
                                 echo
@@ -181,7 +185,7 @@ if [ "$PHP_yn" != 'y' -a "$PHP_yn" != 'n' ];then
         echo -e "\033[31minput error! Please only input 'y' or 'n'\033[0m"
 else
         if [ "$PHP_yn" == 'y' ];then
-                [ -d "$php_install_dir" ] && { echo -e "\033[31mThe php already installed! \033[0m" ; PHP_yn=n ; break ; }
+                [ -d "$php_install_dir/bin" ] && { echo -e "\033[31mThe php already installed! \033[0m" ; PHP_yn=Other ; break ; }
                 while :
                 do
                         echo
@@ -190,28 +194,12 @@ else
                         echo -e "\t\033[32m2\033[0m. Install php-5.4"
                         echo -e "\t\033[32m3\033[0m. Install php-5.5"
                         echo -e "\t\033[32m4\033[0m. Install php-5.6"
-                        echo -e "\t\033[32m5\033[0m. Install php-7/phpng(alpha)"
+                        echo -e "\t\033[32m5\033[0m. Install php-7/phpng(beta)"
                         read -p "Please input a number:(Default 1 press Enter) " PHP_version
                         [ -z "$PHP_version" ] && PHP_version=1
                         if [ $PHP_version != 1 -a $PHP_version != 2 -a $PHP_version != 3 -a $PHP_version != 4 -a $PHP_version != 5 ];then
                                 echo -e "\033[31minput error! Please only input number 1,2,3,4,5 \033[0m"
                         else
-				PHP_MySQL_driver=1
-                                #while :
-                                #        do
-                                #        echo
-                                #        echo 'You can either use the mysqlnd or libmysql library to connect from PHP to MySQL:'
-                                #        echo -e "\t\033[32m1\033[0m. MySQL native driver (mysqlnd)"
-                                #        echo -e "\t\033[32m2\033[0m. MySQL Client Library (libmysql)"
-                                #        read -p "Please input a number:(Default 1 press Enter) " PHP_MySQL_driver
-                                #        [ -z "$PHP_MySQL_driver" ] && PHP_MySQL_driver=1
-                                #        if [ $PHP_MySQL_driver != 1 -a $PHP_MySQL_driver != 2 ];then
-                                #                echo -e "\033[31minput error! Please only input number 1,2\033[0m"
-                                #        else
-                                #                break
-                                #        fi
-                                #done
-
 				while :
 				do
 					echo
@@ -310,7 +298,7 @@ else
                                                 (( ${#xcache_admin_pass} >= 5 )) && { xcache_admin_md5_pass=`echo -n "$xcache_admin_pass" | md5sum | awk '{print $1}'` ; break ; } || echo -e "\033[31mxcache admin password least 5 characters! \033[0m"
                                         done
                                 fi
-				if [ "$PHP_version" == '1' -o "$PHP_version" == '2' ];then
+				if [ "$PHP_version" != '5' -a "$PHP_cache" != '1' ];then
                                         while :
                                         do
                                                 echo
@@ -361,20 +349,8 @@ else
                                                 else
                                                         break
                                                 fi
-						[ -n "`cat /etc/issue | grep 'Ubuntu 14'`" -a "$Magick" == '1' ] && Magick=9
                                         done
                                 fi
-
-                                #while :
-                                #do
-                                #        echo
-                                #        read -p "Do you want to install pecl_http PHP extension(Support HTTP request curls)? [y/n]: " pecl_http_yn
-                                #        if [ "$pecl_http_yn" != 'y' -a "$pecl_http_yn" != 'n' ];then
-                                #                echo -e "\033[31minput error! Please only input 'y' or 'n'\033[0m"
-                                #        else
-                                #                break
-                                #        fi
-                                #done
                                 break
                         fi
                 done
@@ -383,7 +359,6 @@ else
 fi
 done
 
-if [ "$Web_yn" == 'y' -a "$DB_yn" == 'y' -a "$PHP_yn" == 'y' ];then
 # check Pureftpd
 while :
 do
@@ -392,25 +367,10 @@ do
         if [ "$FTP_yn" != 'y' -a "$FTP_yn" != 'n' ];then
                 echo -e "\033[31minput error! Please only input 'y' or 'n'\033[0m"
         else
-
-                if [ "$FTP_yn" == 'y' ];then
-                        [ -d "$pureftpd_install_dir" ] && { echo -e "\033[31mThe FTP service already installed! \033[0m" ; FTP_yn=n ; break ; }
-                        while :
-                        do
-                                read -p "Please input the manager password of Pure-FTPd: " ftpmanagerpwd
-				[ -n "`echo $ftpmanagerpwd | grep '[+|&]'`" ] && { echo -e "\033[31minput error,not contain a plus sign (+) and &\033[0m"; continue; }
-                                if (( ${#ftpmanagerpwd} >= 5 ));then
-                                        sed -i "s+^ftpmanagerpwd.*+ftpmanagerpwd='$ftpmanagerpwd'+" options.conf
-                                        break
-                                else
-                                        echo -e "\033[31mFtp manager password least 5 characters! \033[0m"
-                                fi
-                        done
-                fi
+                [ "$FTP_yn" == 'y' -a -d "$pureftpd_install_dir/bin" ] && { echo -e "\033[31mThe FTP service already installed! \033[0m" ; FTP_yn=Other ; break ; }
                 break
         fi
 done
-fi
 
 # check phpMyAdmin
 while :
@@ -421,7 +381,7 @@ do
                 echo -e "\033[31minput error! Please only input 'y' or 'n'\033[0m"
         else
 		if [ "$phpMyAdmin_yn" == 'y' ];then
-		        [ -d "$home_dir/default/phpMyAdmin" ] && echo -e "\033[31mThe phpMyAdmin already installed! \033[0m" && phpMyAdmin_yn=n && break
+		        [ -d "$wwwroot_dir/default/phpMyAdmin" ] && echo -e "\033[31mThe phpMyAdmin already installed! \033[0m" && phpMyAdmin_yn=Other && break
 		fi
                 break
         fi
@@ -437,7 +397,7 @@ do
                 echo -e "\033[31minput error! Please only input 'y' or 'n'\033[0m"
 	else
 		if [ "$redis_yn" == 'y' ];then
-			[ -d "$redis_install_dir" ] && { echo -e "\033[31mThe redis already installed! \033[0m" ; redis_yn=n ; break ; }
+			[ -d "$redis_install_dir" ] && { echo -e "\033[31mThe redis already installed! \033[0m" ; redis_yn=Other ; break ; }
 		fi
 		break
 	fi
@@ -452,25 +412,12 @@ do
                 echo -e "\033[31minput error! Please only input 'y' or 'n'\033[0m"
         else
 		if [ "$memcached_yn" == 'y' ];then
-			[ -d "$memcached_install_dir" ] && { echo -e "\033[31mThe memcached already installed! \033[0m" ; memcached_yn=n ; break ; }
+			[ -d "$memcached_install_dir/bin" ] && { echo -e "\033[31mThe memcached already installed! \033[0m" ; memcached_yn=Other ; break ; }
 		fi
                 break
         fi
 done
 fi
-
-# gcc sane CFLAGS and CXXFLAGS
-#while :
-#do
-#        echo
-#        read -p "Do you want to optimizing compiled code using safe, sane CFLAGS and CXXFLAGS? [y/n]: " gcc_sane_yn
-#        if [ "$gcc_sane_yn" != 'y' -a "$gcc_sane_yn" != 'n' ];then
-#                echo -e "\033[31minput error! Please only input 'y' or 'n'\033[0m"
-#        else
-#                [ "$gcc_sane_yn" == 'y' -a -z "`cat /proc/cpuinfo | grep 'model name' | grep -E 'Intel|AMD'`" ] && echo -e "Unknown CPU model" && gcc_sane_yn=n && break
-#                break
-#        fi
-#done
 
 # check jemalloc or tcmalloc 
 if [ "$Web_yn" == 'y' -o "$DB_yn" == 'y' ];then
@@ -501,54 +448,47 @@ if [ "$Web_yn" == 'y' -o "$DB_yn" == 'y' ];then
         done
 fi
 
-if [ "$OS" == 'CentOS' ];then
-	if [ -n "`cat /etc/redhat-release | grep -E ' 7\.| 6\.'`" -a -d "/lib64" ];then
-			while :
-                        do
+while :
+do
+        echo
+        read -p "Do you want to install HHVM? [y/n]: " HHVM_yn
+        if [ "$HHVM_yn" != 'y' -a "$HHVM_yn" != 'n' ];then
+                echo -e "\033[31minput error! Please only input 'y' or 'n'\033[0m"
+        else
+                if [ "$HHVM_yn" == 'y' ];then
+                        if [ -e '/etc/redhat-release' ] && [ -n "`grep -E ' 7\.| 6\.5| 6\.6| 6\.7' /etc/redhat-release`" -a -d "/lib64" ];then
+                                break
+                        else
+                                echo -e "\033[31mHHVM only support CentOS6.5+ 64bit, CentOS7 64bit! \033[0m"
+                                echo "Press Ctrl+c to cancel or Press any key to continue..."
                                 echo
-                                read -p "Do you want to install HHVM? [y/n]: " HHVM_yn
-                                if [ "$HHVM_yn" != 'y' -a "$HHVM_yn" != 'n' ];then
-                                        echo -e "\033[31minput error! Please only input 'y' or 'n'\033[0m"
-                                else
-                                        break
-                                fi
-                        done
-	else
-	        echo -e "\033[31mOnly support CentOS6.5 64bit, CentOS7 64bit! \033[0m"
-	fi
-fi
+                                char=`get_char`
+                                HHVM_yn=
+                                break
+                        fi
+                elif [ "$HHVM_yn" == 'n' ];then
+                        break
+                fi
+        fi
+done
 
 chmod +x functions/*.sh init/* *.sh
 
 # init
 if [ "$OS" == 'CentOS' ];then
 	. init/init_CentOS.sh 2>&1 | tee $lnmp_dir/install.log
-	#/bin/mv init/init_CentOS.sh init/init_CentOS.ed
 	[ -n "`gcc --version | head -n1 | grep '4\.1\.'`" ] && export CC="gcc44" CXX="g++44"
 elif [ "$OS" == 'Debian' ];then
 	. init/init_Debian.sh 2>&1 | tee $lnmp_dir/install.log
-	#/bin/mv init/init_Debian.sh init/init_Debian.ed
 elif [ "$OS" == 'Ubuntu' ];then
 	. init/init_Ubuntu.sh 2>&1 | tee $lnmp_dir/install.log
-	#/bin/mv init/init_Ubuntu.sh init/init_Ubuntu.ed
-fi
-
-# Optimization compiled code using safe, sane CFLAGS and CXXFLAGS
-if [ "$gcc_sane_yn" == 'y' ];then
-        if [ `getconf WORD_BIT` == 32 ] && [ `getconf LONG_BIT` == 64 ];then
-                export CHOST="x86_64-pc-linux-gnu" CFLAGS="-march=native -O3 -pipe -fomit-frame-pointer"
-                export CXXFLAGS="${CFLAGS}"
-        elif [ `getconf WORD_BIT` == 32 ] && [ `getconf LONG_BIT` == 32 ];then
-                export CHOST="i686-pc-linux-gnu" CFLAGS="-march=native -O3 -pipe -fomit-frame-pointer"
-                export CXXFLAGS="${CFLAGS}"
-        fi
 fi
 
 # jemalloc or tcmalloc
-if [ "$je_tc_malloc_yn" == 'y' -a "$je_tc_malloc" == '1' ];then
+if [ "$je_tc_malloc_yn" == 'y' -a "$je_tc_malloc" == '1' -a ! -e "/usr/local/lib/libjemalloc.so" ];then
 	. functions/jemalloc.sh
 	Install_jemalloc | tee -a $lnmp_dir/install.log
-elif [ "$je_tc_malloc_yn" == 'y' -a "$je_tc_malloc" == '2' ];then
+elif [ "$je_tc_malloc_yn" == 'y' -a "$je_tc_malloc" == '2' -a ! -e "/usr/local/lib/libtcmalloc.so" ];then
 	. functions/tcmalloc.sh
 	Install_tcmalloc | tee -a $lnmp_dir/install.log
 fi
@@ -573,12 +513,6 @@ elif [ "$DB_version" == '6' ];then
 	. functions/percona-5.5.sh 
 	Install_Percona-5-5 2>&1 | tee -a $lnmp_dir/install.log 
 fi
-
-# PHP MySQL Client
-#if [ "$DB_yn" == 'n' -a "$PHP_yn" == 'y' -a "$PHP_MySQL_driver" == '2' ];then
-#	. functions/php-mysql-client.sh
-#	Install_PHP-MySQL-Client 2>&1 | tee -a $lnmp_dir/install.log
-#fi
 
 # Apache
 if [ "$Apache_version" == '1' ];then
@@ -616,12 +550,6 @@ elif [ "$Magick" == '2' ];then
 	Install_GraphicsMagick 2>&1 | tee -a $lnmp_dir/install.log
 fi
 
-# Support HTTP request curls 
-if [ "$pecl_http_yn" == 'y' ];then
-	. functions/pecl_http.sh
-	Install_pecl_http 2>&1 | tee -a $lnmp_dir/install.log
-fi
-
 # ionCube
 if [ "$ionCube_yn" == 'y' ];then
         . functions/ioncube.sh
@@ -646,7 +574,7 @@ elif [ "$PHP_cache" == '4' -a "$PHP_version" == '1' ];then
         Install_eAccelerator-0-9 2>&1 | tee -a $lnmp_dir/install.log
 fi
 
-# ZendGuardLoader (php <= 5.4)
+# ZendGuardLoader (php <= 5.6)
 if [ "$ZendGuardLoader_yn" == 'y' ];then
 	. functions/ZendGuardLoader.sh
         Install_ZendGuardLoader 2>&1 | tee -a $lnmp_dir/install.log
@@ -659,12 +587,6 @@ if [ "$Nginx_version" == '1' ];then
 elif [ "$Nginx_version" == '2' ];then
 	. functions/tengine.sh
         Install_Tengine 2>&1 | tee -a $lnmp_dir/install.log
-fi
-
-# ngx_pagespeed
-if [ "$ngx_pagespeed_yn" == 'y' ];then
-	. functions/ngx_pagespeed.sh
-	Install_ngx_pagespeed 2>&1 | tee -a $lnmp_dir/install.log
 fi
 
 # Pure-FTPd
@@ -695,7 +617,7 @@ fi
 . ./options.conf
 
 # index example
-if [ ! -e "$home_dir/default/index.html" -a "$Web_yn" == 'y' ];then
+if [ ! -e "$wwwroot_dir/default/index.html" -a "$Web_yn" == 'y' ];then
 	. functions/test.sh
 	TEST 2>&1 | tee -a $lnmp_dir/install.log 
 fi
@@ -704,6 +626,9 @@ if [ "$HHVM_yn" == 'y' ];then
 	. functions/hhvm_CentOS.sh 
 	Install_hhvm_CentOS 2>&1 | tee -a $lnmp_dir/install.log 
 fi
+
+# Starting DB 
+[ -e "$db_install_dir" -a -z "`ps -ef | grep -v grep | grep mysql`" ] && /etc/init.d/mysqld start
 
 echo "####################Congratulations########################"
 [ "$Web_yn" == 'y' -a "$Nginx_version" != '3' -a "$Apache_version" == '3' ] && echo -e "\n`printf "%-32s" "Nginx/Tengine install dir":`\033[32m$web_install_dir\033[0m"
@@ -723,9 +648,8 @@ echo "####################Congratulations########################"
 [ "$PHP_cache" == '4' ] && echo -e "`printf "%-32s" "eAccelerator user:"`\033[32madmin\033[0m"
 [ "$PHP_cache" == '4' ] && echo -e "`printf "%-32s" "eAccelerator password:"`\033[32meAccelerator\033[0m"
 [ "$FTP_yn" == 'y' ] && echo -e "\n`printf "%-32s" "Pure-FTPd install dir:"`\033[32m$pureftpd_install_dir\033[0m"
-[ "$FTP_yn" == 'y' ] && echo -e "`printf "%-32s" "Pure-FTPd php manager dir:"`\033[32m$home_dir/default/ftp\033[0m"
-[ "$FTP_yn" == 'y' ] && echo -e "`printf "%-32s" "Ftp User Control Panel url:"`\033[32mhttp://$local_IP/ftp\033[0m"
-[ "$phpMyAdmin_yn" == 'y' ] && echo -e "\n`printf "%-32s" "phpMyAdmin dir:"`\033[32m$home_dir/default/phpMyAdmin\033[0m"
+[ "$FTP_yn" == 'y' ] && echo -e "`printf "%-32s" "Create FTP virtual script:"`\033[32m./pureftpd_vhost.sh\033[0m"
+[ "$phpMyAdmin_yn" == 'y' ] && echo -e "\n`printf "%-32s" "phpMyAdmin dir:"`\033[32m$wwwroot_dir/default/phpMyAdmin\033[0m"
 [ "$phpMyAdmin_yn" == 'y' ] && echo -e "`printf "%-32s" "phpMyAdmin Control Panel url:"`\033[32mhttp://$local_IP/phpMyAdmin\033[0m"
 [ "$redis_yn" == 'y' ] && echo -e "\n`printf "%-32s" "redis install dir:"`\033[32m$redis_install_dir\033[0m"
 [ "$memcached_yn" == 'y' ] && echo -e "\n`printf "%-32s" "memcached install dir:"`\033[32m$memcached_install_dir\033[0m"

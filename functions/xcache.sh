@@ -8,17 +8,17 @@ cd $lnmp_dir/src
 . ../functions/download.sh
 . ../options.conf
 
-src_url=http://xcache.lighttpd.net/pub/Releases/3.2.0/xcache-3.2.0.tar.gz && Download_src
-tar xzf xcache-3.2.0.tar.gz 
-cd xcache-3.2.0
+src_url=http://xcache.lighttpd.net/pub/Releases/$xcache_version/xcache-$xcache_version.tar.gz && Download_src
+tar xzf xcache-$xcache_version.tar.gz 
+cd xcache-$xcache_version
 make clean
 $php_install_dir/bin/phpize
 ./configure --enable-xcache --enable-xcache-coverager --enable-xcache-optimizer --with-php-config=$php_install_dir/bin/php-config
 make && make install
 if [ -f "$php_install_dir/lib/php/extensions/`ls $php_install_dir/lib/php/extensions | grep zts`/xcache.so" ];then
-	/bin/cp -R htdocs $home_dir/default/xcache
-	chown -R www.www $home_dir/default/xcache
-	touch /tmp/xcache;chown www.www /tmp/xcache
+	/bin/cp -R htdocs $wwwroot_dir/default/xcache
+	chown -R ${run_user}.$run_user $wwwroot_dir/default/xcache
+	touch /tmp/xcache;chown ${run_user}.$run_user /tmp/xcache
 
         Memtatol=`free -m | grep 'Mem:' | awk '{print $2}'`
         if [ $Memtatol -le 512 ];then
@@ -77,6 +77,6 @@ else
         echo -e "\033[31meXcache module install failed, Please contact the author! \033[0m"
 fi
 cd ..
-/bin/rm -rf xcache-3.2.0
+/bin/rm -rf xcache-$xcache_version
 cd ..
 }

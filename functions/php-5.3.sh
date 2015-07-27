@@ -9,23 +9,24 @@ cd $lnmp_dir/src
 . ../functions/check_os.sh
 . ../options.conf
 
-src_url=http://ftp.gnu.org/pub/gnu/libiconv/libiconv-1.14.tar.gz && Download_src
-src_url=http://downloads.sourceforge.net/project/mcrypt/Libmcrypt/2.5.8/libmcrypt-2.5.8.tar.gz && Download_src
-src_url=http://downloads.sourceforge.net/project/mhash/mhash/0.9.9.9/mhash-0.9.9.9.tar.gz && Download_src
-src_url=http://downloads.sourceforge.net/project/mcrypt/MCrypt/2.6.8/mcrypt-2.6.8.tar.gz && Download_src
-src_url=http://www.php.net/distributions/php-5.3.29.tar.gz && Download_src
+src_url=http://ftp.gnu.org/pub/gnu/libiconv/libiconv-$libiconv_version.tar.gz && Download_src
+src_url=http://downloads.sourceforge.net/project/mcrypt/Libmcrypt/$libmcrypt_version/libmcrypt-$libmcrypt_version.tar.gz && Download_src
+src_url=http://downloads.sourceforge.net/project/mhash/mhash/$mhash_version/mhash-$mhash_version.tar.gz && Download_src
+src_url=http://downloads.sourceforge.net/project/mcrypt/MCrypt/$mcrypt_version/mcrypt-$mcrypt_version.tar.gz && Download_src
+src_url=http://www.php.net/distributions/php-$php_3_version.tar.gz && Download_src
+src_url=http://mirrors.linuxeye.com/lnmp/src/php5.3patch && Download_src
 
-tar xzf libiconv-1.14.tar.gz
-cd libiconv-1.14
+tar xzf libiconv-$libiconv_version.tar.gz
+cd libiconv-$libiconv_version
 ./configure --prefix=/usr/local
 [ -n "`cat /etc/issue | grep 'Ubuntu 13'`" ] && sed -i 's@_GL_WARN_ON_USE (gets@//_GL_WARN_ON_USE (gets@' srclib/stdio.h 
 [ -n "`cat /etc/issue | grep 'Ubuntu 14'`" ] && sed -i 's@gets is a security@@' srclib/stdio.h 
 make && make install
 cd ../
-/bin/rm -rf libiconv-1.14
+/bin/rm -rf libiconv-$libiconv_version
 
-tar xzf libmcrypt-2.5.8.tar.gz
-cd libmcrypt-2.5.8
+tar xzf libmcrypt-$libmcrypt_version.tar.gz
+cd libmcrypt-$libmcrypt_version
 ./configure
 make && make install
 ldconfig
@@ -33,24 +34,15 @@ cd libltdl/
 ./configure --enable-ltdl-install
 make && make install
 cd ../../
-/bin/rm -rf libmcrypt-2.5.8
+/bin/rm -rf libmcrypt-$libmcrypt_version
 
-tar xzf mhash-0.9.9.9.tar.gz
-cd mhash-0.9.9.9
+tar xzf mhash-$mhash_version.tar.gz
+cd mhash-$mhash_version
 ./configure
 make && make install
 cd ../
-/bin/rm -rf mhash-0.9.9.9 
+/bin/rm -rf mhash-$mhash_version 
 
-# linked library
-if [ "$PHP_MySQL_driver" == '1' ];then
-        PHP_MySQL_options="--with-mysql=mysqlnd --with-mysqli=mysqlnd --with-pdo-mysql=mysqlnd"
-elif [ "$PHP_MySQL_driver" == '2' ];then
-        [ "$DB_yn" == 'n' ] && db_install_dir=$mysql_install_dir
-        ln -s $db_install_dir/include /usr/include/mysql
-        PHP_MySQL_options="--with-mysql=$db_install_dir --with-mysqli=$db_install_dir/bin/mysql_config --with-pdo-mysql=$db_install_dir/bin/mysql_config"
-fi
-echo "$db_install_dir/lib" > /etc/ld.so.conf.d/mysql.conf
 echo '/usr/local/lib' > /etc/ld.so.conf.d/local.conf
 ldconfig
 OS_CentOS='ln -s /usr/local/bin/libmcrypt-config /usr/bin/libmcrypt-config \n
@@ -61,23 +53,27 @@ else \n
 fi'
 OS_command
 
-tar xzf mcrypt-2.6.8.tar.gz
-cd mcrypt-2.6.8
+tar xzf mcrypt-$mcrypt_version.tar.gz
+cd mcrypt-$mcrypt_version
 ldconfig
 ./configure
 make && make install
 cd ../
-/bin/rm -rf mcrypt-2.6.8 
+/bin/rm -rf mcrypt-$mcrypt_version 
 
-tar xzf php-5.3.29.tar.gz
-useradd -M -s /sbin/nologin www
-wget -O fpm-race-condition.patch 'https://bugs.php.net/patch-display.php?bug_id=65398&patch=fpm-race-condition.patch&revision=1375772074&download=1'
-patch -d php-5.3.29 -p0 < fpm-race-condition.patch
-cd php-5.3.29
+tar xzf php-$php_3_version.tar.gz
+id -u $run_user >/dev/null 2>&1
+[ $? -ne 0 ] && useradd -M -s /sbin/nologin $run_user 
+[ ! -e "fpm-race-condition.patch" ] && wget -O fpm-race-condition.patch 'https://bugs.php.net/patch-display.php?bug_id=65398&patch=fpm-race-condition.patch&revision=1375772074&download=1'
+patch -d php-$php_3_version -p0 < fpm-race-condition.patch
+cd php-$php_3_version
+patch -p1 < ../php5.3patch 
 make clean
+[ ! -d "$php_install_dir" ] && mkdir -p $php_install_dir
 if [ "$Apache_version" == '1' -o "$Apache_version" == '2' ];then
 CFLAGS= CXXFLAGS= ./configure --prefix=$php_install_dir --with-config-file-path=$php_install_dir/etc \
---with-apxs2=$apache_install_dir/bin/apxs $PHP_MySQL_options --disable-fileinfo \
+--with-apxs2=$apache_install_dir/bin/apxs --disable-fileinfo \
+--with-mysql=mysqlnd --with-mysqli=mysqlnd --with-pdo-mysql=mysqlnd \
 --with-iconv-dir=/usr/local --with-freetype-dir --with-jpeg-dir --with-png-dir --with-zlib \
 --with-libxml-dir=/usr --enable-xml --disable-rpath --enable-bcmath --enable-shmop --enable-exif \
 --enable-sysvsem --enable-inline-optimization --with-curl --enable-mbregex \
@@ -86,7 +82,8 @@ CFLAGS= CXXFLAGS= ./configure --prefix=$php_install_dir --with-config-file-path=
 --with-gettext --enable-zip --enable-soap --disable-ipv6 --disable-debug
 else
 CFLAGS= CXXFLAGS= ./configure --prefix=$php_install_dir --with-config-file-path=$php_install_dir/etc \
---with-fpm-user=www --with-fpm-group=www --enable-fpm $PHP_MySQL_options --disable-fileinfo \
+--with-fpm-user=$run_user --with-fpm-group=$run_user --enable-fpm --disable-fileinfo \
+--with-mysql=mysqlnd --with-mysqli=mysqlnd --with-pdo-mysql=mysqlnd \
 --with-iconv-dir=/usr/local --with-freetype-dir --with-jpeg-dir --with-png-dir --with-zlib \
 --with-libxml-dir=/usr --enable-xml --disable-rpath --enable-bcmath --enable-shmop --enable-exif \
 --enable-sysvsem --enable-inline-optimization --with-curl --enable-mbregex \
@@ -97,14 +94,16 @@ fi
 make ZEND_EXTRA_LIBS='-liconv'
 make install
 
-if [ -d "$php_install_dir" ];then
+if [ -d "$php_install_dir/bin" ];then
         echo -e "\033[32mPHP install successfully! \033[0m"
 else
+	rm -rf $php_install_dir
         echo -e "\033[31mPHP install failed, Please Contact the author! \033[0m"
         kill -9 $$
 fi
 
-[ -n "`cat /etc/profile | grep 'export PATH='`" -a -z "`cat /etc/profile | grep $php_install_dir`" ] && sed -i "s@^export PATH=\(.*\)@export PATH=$php_install_dir/bin:\1@" /etc/profile
+[ -z "`grep ^'export PATH=' /etc/profile`" ] && echo "export PATH=$php_install_dir/bin:\$PATH" >> /etc/profile 
+[ -n "`grep ^'export PATH=' /etc/profile`" -a -z "`grep $php_install_dir /etc/profile`" ] && sed -i "s@^export PATH=\(.*\)@export PATH=$php_install_dir/bin:\1@" /etc/profile
 . /etc/profile
 
 # wget -c http://pear.php.net/go-pear.phar
@@ -173,15 +172,15 @@ daemonize = yes
 ; Pool Definitions ;
 ;;;;;;;;;;;;;;;;;;;;
 
-[www]
+[$run_user]
 listen = /dev/shm/php-cgi.sock
 listen.backlog = -1
 listen.allowed_clients = 127.0.0.1
-listen.owner = www
-listen.group = www
+listen.owner = $run_user 
+listen.group = $run_user 
 listen.mode = 0666
-user = www
-group = www
+user = $run_user 
+group = $run_user 
 
 pm = dynamic
 pm.max_children = 12
@@ -198,7 +197,7 @@ rlimit_files = 51200
 rlimit_core = 0
 
 catch_workers_output = yes
-env[HOSTNAME] = $HOSTNAME
+;env[HOSTNAME] = $HOSTNAME
 env[PATH] = /usr/local/bin:/usr/bin:/bin
 env[TMP] = /tmp
 env[TMPDIR] = /tmp
@@ -234,12 +233,12 @@ elif [ $Mem -gt 8500 ];then
         sed -i "s@^pm.max_spare_servers.*@pm.max_spare_servers = 120@" $php_install_dir/etc/php-fpm.conf
 fi
 
-[ "$Web_yn" == 'n' ] && sed -i "s@^listen =.*@listen = $local_IP:9000@" $php_install_dir/etc/php-fpm.conf 
+#[ "$Web_yn" == 'n' ] && sed -i "s@^listen =.*@listen = $local_IP:9000@" $php_install_dir/etc/php-fpm.conf 
 service php-fpm start
 elif [ "$Apache_version" == '1' -o "$Apache_version" == '2' ];then
 service httpd restart
 fi
 cd ..
-/bin/rm -rf php-5.3.29 
+[ -d "$php_install_dir" ] && /bin/rm -rf php-$php_3_version 
 cd ..
 }

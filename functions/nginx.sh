@@ -9,18 +9,19 @@ cd $lnmp_dir/src
 . ../functions/check_os.sh 
 . ../options.conf
 
-src_url=http://downloads.sourceforge.net/project/pcre/pcre/8.36/pcre-8.36.tar.gz && Download_src
-src_url=http://nginx.org/download/nginx-1.6.2.tar.gz && Download_src
+src_url=http://downloads.sourceforge.net/project/pcre/pcre/$pcre_version/pcre-$pcre_version.tar.gz && Download_src
+src_url=http://nginx.org/download/nginx-$nginx_version.tar.gz && Download_src
 
-tar xzf pcre-8.36.tar.gz
-cd pcre-8.36
+tar xzf pcre-$pcre_version.tar.gz
+cd pcre-$pcre_version
 ./configure
 make && make install
 cd ../
 
-tar xzf nginx-1.6.2.tar.gz
-useradd -M -s /sbin/nologin www
-cd nginx-1.6.2
+tar xzf nginx-$nginx_version.tar.gz
+id -u $run_user >/dev/null 2>&1
+[ $? -ne 0 ] && useradd -M -s /sbin/nologin $run_user 
+cd nginx-$nginx_version
 
 # Modify Nginx version
 #sed -i 's@#define NGINX_VERSION.*$@#define NGINX_VERSION      "1.2"@' src/core/nginx.h
@@ -35,19 +36,22 @@ if [ "$je_tc_malloc" == '1' ];then
 elif [ "$je_tc_malloc" == '2' ];then
 	malloc_module='--with-google_perftools_module'
 	mkdir /tmp/tcmalloc
-	chown -R www.www /tmp/tcmalloc
+	chown -R ${run_user}.$run_user /tmp/tcmalloc
 fi
 
-./configure --prefix=$nginx_install_dir --user=www --group=www --with-http_stub_status_module --with-http_spdy_module --with-http_ssl_module --with-ipv6 --with-http_gzip_static_module --with-http_flv_module $malloc_module
+[ ! -d "$nginx_install_dir" ] && mkdir -p $nginx_install_dir
+./configure --prefix=$nginx_install_dir --user=$run_user --group=$run_user --with-http_stub_status_module --with-http_spdy_module --with-http_ssl_module --with-ipv6 --with-http_gzip_static_module --with-http_realip_module --with-http_flv_module $malloc_module
 make && make install
-if [ -d "$nginx_install_dir" ];then
+if [ -d "$nginx_install_dir/conf" ];then
         echo -e "\033[32mNginx install successfully! \033[0m"
 else
+	rm -rf $nginx_install_dir
         echo -e "\033[31mNginx install failed, Please Contact the author! \033[0m"
         kill -9 $$
 fi
 
-[ -n "`cat /etc/profile | grep 'export PATH='`" -a -z "`cat /etc/profile | grep $nginx_install_dir`" ] && sed -i "s@^export PATH=\(.*\)@export PATH=$nginx_install_dir/bin:\1@" /etc/profile
+[ -z "`grep ^'export PATH=' /etc/profile`" ] && echo "export PATH=$nginx_install_dir/sbin:\$PATH" >> /etc/profile 
+[ -n "`grep ^'export PATH=' /etc/profile`" -a -z "`grep $nginx_install_dir /etc/profile`" ] && sed -i "s@^export PATH=\(.*\)@export PATH=$nginx_install_dir/sbin:\1@" /etc/profile
 . /etc/profile
 
 cd ../../
@@ -65,8 +69,9 @@ if [ "$Apache_version" == '1' -o "$Apache_version" == '2' ];then
 else
 	/bin/cp conf/nginx.conf $nginx_install_dir/conf/nginx.conf
 fi
-sed -i "s@/home/wwwroot/default@$home_dir/default@" $nginx_install_dir/conf/nginx.conf
+sed -i "s@/home/wwwroot/default@$wwwroot_dir/default@" $nginx_install_dir/conf/nginx.conf
 sed -i "s@/home/wwwlogs@$wwwlogs_dir@g" $nginx_install_dir/conf/nginx.conf
+sed -i "s@^user www www@user $run_user $run_user@" $nginx_install_dir/conf/nginx.conf
 [ "$je_tc_malloc" == '2' ] && sed -i 's@^pid\(.*\)@pid\1\ngoogle_perftools_profiles /tmp/tcmalloc;@' $nginx_install_dir/conf/nginx.conf 
 
 # worker_cpu_affinity
@@ -102,8 +107,6 @@ endscript
 EOF
 
 sed -i "s@^web_install_dir.*@web_install_dir=$nginx_install_dir@" options.conf
-sed -i "s@/home/wwwroot@$home_dir@g" vhost.sh
-sed -i "s@/home/wwwlogs@$wwwlogs_dir@g" vhost.sh
 ldconfig
 service nginx start
 }

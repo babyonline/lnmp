@@ -1,6 +1,7 @@
 #!/bin/bash
 # Author:  yeho <lj2007331 AT gmail.com>
 # Blog:  http://blog.linuxeye.com
+
 Install_MySQL-5-5()
 {
 cd $lnmp_dir/src
@@ -8,18 +9,19 @@ cd $lnmp_dir/src
 . ../functions/check_os.sh
 . ../options.conf
 
-src_url=http://cdn.mysql.com/Downloads/MySQL-5.5/mysql-5.5.41.tar.gz && Download_src
+src_url=http://cdn.mysql.com/Downloads/MySQL-5.5/mysql-$mysql_5_version.tar.gz && Download_src
 
 useradd -M -s /sbin/nologin mysql
 mkdir -p $mysql_data_dir;chown mysql.mysql -R $mysql_data_dir
-tar zxf mysql-5.5.41.tar.gz
-cd mysql-5.5.41
+tar zxf mysql-$mysql_5_version.tar.gz
+cd mysql-$mysql_5_version
 if [ "$je_tc_malloc" == '1' ];then
         EXE_LINKER="-DCMAKE_EXE_LINKER_FLAGS='-ljemalloc'"
 elif [ "$je_tc_malloc" == '2' ];then
         EXE_LINKER="-DCMAKE_EXE_LINKER_FLAGS='-ltcmalloc'"
 fi
 make clean
+[ ! -d "$mysql_install_dir" ] && mkdir -p $mysql_install_dir 
 cmake . -DCMAKE_INSTALL_PREFIX=$mysql_install_dir \
 -DMYSQL_DATADIR=$mysql_data_dir \
 -DSYSCONFDIR=/etc \
@@ -32,15 +34,17 @@ cmake . -DCMAKE_INSTALL_PREFIX=$mysql_install_dir \
 -DWITH_READLINE=1 \
 -DENABLED_LOCAL_INFILE=1 \
 -DENABLE_DTRACE=0 \
--DDEFAULT_CHARSET=utf8 \
--DDEFAULT_COLLATION=utf8_general_ci \
+-DDEFAULT_CHARSET=utf8mb4 \
+-DDEFAULT_COLLATION=utf8mb4_general_ci \
 -DWITH_EMBEDDED_SERVER=1 \
 $EXE_LINKER
-make && make install
+make -j `grep processor /proc/cpuinfo | wc -l` 
+make install
 
-if [ -d "$mysql_install_dir" ];then
+if [ -d "$mysql_install_dir/bin" ];then
         echo -e "\033[32mMySQL install successfully! \033[0m"
 else
+	rm -rf $mysql_install_dir
         echo -e "\033[31mMySQL install failed, Please contact the author! \033[0m"
         kill -9 $$
 fi
@@ -52,7 +56,7 @@ chkconfig mysqld on'
 OS_Debian_Ubuntu='update-rc.d mysqld defaults'
 OS_command
 cd ..
-/bin/rm -rf mysql-5.5.41
+[ -d "$mysql_install_dir" ] && /bin/rm -rf mysql-$mysql_5_version
 cd ..
 
 # my.cf
@@ -60,6 +64,7 @@ cat > /etc/my.cnf << EOF
 [client]
 port = 3306
 socket = /tmp/mysql.sock
+default-character-set = utf8mb4
 
 [mysqld]
 port = 3306
@@ -71,6 +76,9 @@ pid-file = $mysql_data_dir/mysql.pid
 user = mysql
 bind-address = 0.0.0.0
 server-id = 1
+
+init-connect = 'SET NAMES utf8mb4'
+character-set-server = utf8mb4
 
 skip-name-resolve
 #skip-networking
@@ -180,8 +188,8 @@ $mysql_install_dir/scripts/mysql_install_db --user=mysql --basedir=$mysql_instal
 
 chown mysql.mysql -R $mysql_data_dir
 service mysqld start
-export PATH=$mysql_install_dir/bin:$PATH
-[ -z "`cat /etc/profile | grep $mysql_install_dir`" ] && echo "export PATH=$mysql_install_dir/bin:\$PATH" >> /etc/profile 
+[ -z "`grep ^'export PATH=' /etc/profile`" ] && echo "export PATH=$mysql_install_dir/bin:\$PATH" >> /etc/profile 
+[ -n "`grep ^'export PATH=' /etc/profile`" -a -z "`grep $mysql_install_dir /etc/profile`" ] && sed -i "s@^export PATH=\(.*\)@export PATH=$mysql_install_dir/bin:\1@" /etc/profile
 . /etc/profile
 
 $mysql_install_dir/bin/mysql -e "grant all privileges on *.* to root@'127.0.0.1' identified by \"$dbrootpwd\" with grant option;"

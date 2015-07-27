@@ -1,6 +1,7 @@
 #!/bin/bash
 # Author:  yeho <lj2007331 AT gmail.com>
 # Blog:  http://blog.linuxeye.com
+
 Install_Percona-5-5()
 {
 cd $lnmp_dir/src
@@ -8,18 +9,19 @@ cd $lnmp_dir/src
 . ../functions/check_os.sh
 . ../options.conf
 
-src_url=http://www.percona.com/redir/downloads/Percona-Server-5.5/LATEST/source/tarball/percona-server-5.5.41-37.0.tar.gz && Download_src
+src_url=http://www.percona.com/redir/downloads/Percona-Server-5.5/LATEST/source/tarball/percona-server-$percona_5_version.tar.gz && Download_src
 
 useradd -M -s /sbin/nologin mysql
 mkdir -p $percona_data_dir;chown mysql.mysql -R $percona_data_dir
-tar zxf percona-server-5.5.41-37.0.tar.gz 
-cd percona-server-5.5.41-37.0 
+tar zxf percona-server-$percona_5_version.tar.gz 
+cd percona-server-$percona_5_version 
 if [ "$je_tc_malloc" == '1' ];then
         EXE_LINKER="-DCMAKE_EXE_LINKER_FLAGS='-ljemalloc'"
 elif [ "$je_tc_malloc" == '2' ];then
         EXE_LINKER="-DCMAKE_EXE_LINKER_FLAGS='-ltcmalloc'"
 fi
 make clean
+[ ! -d "$percona_install_dir" ] && mkdir -p $percona_install_dir
 cmake . -DCMAKE_INSTALL_PREFIX=$percona_install_dir \
 -DMYSQL_DATADIR=$percona_data_dir \
 -DSYSCONFDIR=/etc \
@@ -32,18 +34,16 @@ cmake . -DCMAKE_INSTALL_PREFIX=$percona_install_dir \
 -DWITH_READLINE=1 \
 -DENABLE_DTRACE=0 \
 -DENABLED_LOCAL_INFILE=1 \
--DDEFAULT_CHARSET=utf8 \
--DDEFAULT_COLLATION=utf8_general_ci \
+-DDEFAULT_CHARSET=utf8mb4 \
+-DDEFAULT_COLLATION=utf8mb4_general_ci \
 $EXE_LINKER
-make && make install
+make -j `grep processor /proc/cpuinfo | wc -l` 
+make install
 
-cd $percona_install_dir/lib/
-ln -s libperconaserverclient.so libmysqlclient.so
-cd -
-
-if [ -d "$percona_install_dir" ];then
+if [ -d "$percona_install_dir/bin" ];then
         echo -e "\033[32mPercona install successfully! \033[0m"
 else
+	rm -rf $percona_install_dir
         echo -e "\033[31mPercona install failed, Please contact the author! \033[0m"
         kill -9 $$
 fi
@@ -55,7 +55,7 @@ chkconfig mysqld on'
 OS_Debian_Ubuntu='update-rc.d mysqld defaults'
 OS_command
 cd ..
-/bin/rm -rf percona-server-5.5.41-37.0
+[ -d "$percona_install_dir" ] && /bin/rm -rf percona-server-$percona_5_version
 cd ..
 
 # my.cf
@@ -63,6 +63,7 @@ cat > /etc/my.cnf << EOF
 [client]
 port = 3306
 socket = /tmp/mysql.sock
+default-character-set = utf8mb4
 
 [mysqld]
 port = 3306
@@ -74,6 +75,9 @@ pid-file = $percona_data_dir/mysql.pid
 user = mysql
 bind-address = 0.0.0.0
 server-id = 1
+
+init-connect = 'SET NAMES utf8mb4'
+character-set-server = utf8mb4
 
 skip-name-resolve
 #skip-networking
@@ -183,8 +187,8 @@ $percona_install_dir/scripts/mysql_install_db --user=mysql --basedir=$percona_in
 
 chown mysql.mysql -R $percona_data_dir
 service mysqld start
-export PATH=$percona_install_dir/bin:$PATH
-[ -z "`cat /etc/profile | grep $percona_install_dir`" ] && echo "export PATH=$percona_install_dir/bin:\$PATH" >> /etc/profile 
+[ -z "`grep ^'export PATH=' /etc/profile`" ] && echo "export PATH=$percona_install_dir/bin:\$PATH" >> /etc/profile 
+[ -n "`grep ^'export PATH=' /etc/profile`" -a -z "`grep $percona_install_dir /etc/profile`" ] && sed -i "s@^export PATH=\(.*\)@export PATH=$percona_install_dir/bin:\1@" /etc/profile
 . /etc/profile
 
 $percona_install_dir/bin/mysql -e "grant all privileges on *.* to root@'127.0.0.1' identified by \"$dbrootpwd\" with grant option;"
